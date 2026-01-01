@@ -1,0 +1,57 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pkl
+
+# Virtual environments
+.env
+.venv/
+venv/
+snn/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache/
+pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Django / Flask / FastAPI / other frameworks
+*.log
+instance/
+*.sqlite3
+
+# MyPy / Pyright
+.mypy_cache/
+.pyright/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+
+# Environments & secrets
+*.env
+*.local
+
+# Temporary files
+.DS_Store
+Thumbs.db
