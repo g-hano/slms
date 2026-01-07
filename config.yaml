@@ -20,17 +20,17 @@ model:
 phases:
   phase1_256:
     repo_id: "Chan-Y/phase1-256"
-    steps: 5000
-    batch_size: 32    # 2 GPU için toplam batch (24 per GPU)
+    steps: 1000
+    batch_size: 16    # 2 GPU için toplam batch (24 per GPU)
   
   phase2_1024:
     repo_id: "Chan-Y/phase2-1024"
-    steps: 3000
+    steps: 6000
     batch_size: 8
   
   phase3_2048:
-    repo_id: "ChanY-2/phase3-2048"
-    steps: 1500
+    repo_id: "ChanY2/phase3-2048"
+    steps: 300
     batch_size: 4
 
 # Optimizer Ayarları (Muon + AdamW)
@@ -40,16 +40,16 @@ optimizer:
   weight_decay: 0.01
   warmup_ratio: 0.05
   max_grad_norm: 1.0
-  grad_accumulation_steps: 2  # 2 GPU x 2 step = 4 efektif
+  grad_accumulation_steps: 1  # 2 GPU x 2 step = 4 efektif
 
 # Streaming ve Doğrulama
 streaming:
   shuffle_buffer: 10000
-  val_samples: 200     # Validasyon için ayrılacak örnek sayısı
+  val_samples: 500     # Validasyon için ayrılacak örnek sayısı
   num_workers: 4
 
 # Loglama
 logging:
   save_steps: 1000
-  log_steps: 10
-  eval_steps: 200
+  log_steps: 100
+  eval_steps: 1000
