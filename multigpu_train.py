@@ -82,8 +82,10 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained(config['model']['model_id'])
     vocab_size = tokenizer.vocab_size
+    model_type_ = config['model']['type']
+    print(f"Model Type: {model_type_}")
     
-    model_cls = RegularLLM if config['model']['type'] == "regular" else SpikingLLM
+    model_cls = RegularLLM if model_type_ == "regular" else SpikingLLM
     
     model = model_cls(
         vocab_size=vocab_size,
@@ -95,11 +97,12 @@ def main():
         dtype=torch.bfloat16
     )
 
-    if config['model']['type'] == "regular":
+    if model_type_ == "regular":
          model.lm_head.weight = model.token_emb.weight
 
-    if accelerator.is_main_process: print("🚀 Compiling model with torch.compile...")
-    model = torch.compile(model)
+    if accelerator.is_main_process and model_type_ == "regular": 
+         print("🚀 Compiling model with torch.compile...")
+         model = torch.compile(model)
 
     muon_params_list, adam_params_list = get_grouped_params(model)
     
