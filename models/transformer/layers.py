@@ -24,7 +24,7 @@ class SpikingSwiGLU(nn.Module):
     def __init__(self, input_dim, hidden_dim, beta=0.95, num_steps=5, dtype=torch.bfloat16, device="cuda"):
         super().__init__()
         self.swiglu = SwiGLU(input_dim, hidden_dim, dtype=dtype, device=device)
-        self.lif = snn.Leaky(beta=beta, learn_beta=True)
+        self.lif = snn.Leaky(beta=beta, learn_beta=True).to(dtype=dtype, device=device)
         self.num_steps = num_steps
         
         self.spike_scale = nn.Parameter(torch.tensor(1.0, dtype=dtype, device=device))
@@ -58,12 +58,12 @@ class SpikingSwiGLU(nn.Module):
         spike_rate = spike_acc / self.num_steps
         with torch.no_grad():
             if self.training:
-                current_mean = x.abs().mean()
+                current_mean = x.abs().mean().to(x.dtype)
                 self.running_mean.mul_(self.momentum).add_(current_mean, alpha=1-self.momentum)
         
         # Use running mean for stable scaling
         output = spike_rate * self.running_mean * self.spike_scale
-        return output
+        return output.to(x.dtype)
 
 class SurrogateSpike(torch.autograd.Function):
     """
@@ -76,7 +76,7 @@ class SurrogateSpike(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input):
         ctx.save_for_backward(input)
-        return input.gt(0.0).float()
+        return input.gt(0.0).to(input.dtype)
     
     @staticmethod
     def backward(ctx, grad_output):
@@ -85,13 +85,13 @@ class SurrogateSpike(torch.autograd.Function):
         # Sigmoid derivative as surrogate gradient
         temp = SurrogateSpike.gamma * input
         temp = torch.clamp(temp, -10, 10)  # Prevent overflow
-        temp = temp / (SurrogateSpike.gamma * (1.0 + torch.abs(temp))) ** 2
+        temp = (temp / (SurrogateSpike.gamma * (1.0 + torch.abs(temp))) ** 2).to(grad_output.dtype)
         return grad_input * temp
 
 class SurrogateLIF(nn.Module):
-    def __init__(self, beta=0.9, threshold=1.0, reset_mechanism='subtract'):
+    def __init__(self, beta=0.9, threshold=1.0, reset_mechanism='subtract', dtype=torch.bfloat16, device="cuda"):
         super().__init__()
-        self.beta = nn.Parameter(torch.tensor(beta))  # Learnable decay constant
+        self.beta = nn.Parameter(torch.tensor(beta), dtype=dtype, device=device)  # Learnable decay constant
         self.threshold = threshold
         self.reset_mechanism = reset_mechanism
         self.surrogate_spike = SurrogateSpike.apply
@@ -111,14 +111,14 @@ class SurrogateLIF(nn.Module):
             mem = mem - spk * self.threshold
         elif self.reset_mechanism == 'zero':
             mem = mem * (1 - spk)
-        
+        mem = mem.to(self.beta.dtype)
         return spk, mem
 
 class ImprovedSpikingSwiGLU(nn.Module):
     def __init__(self, input_dim, hidden_dim, beta=0.9, num_steps=5, dtype=torch.bfloat16, device="cuda"):
         super().__init__()
         self.swiglu = SwiGLU(input_dim, hidden_dim, dtype=dtype, device=device)
-        self.lif = SurrogateLIF(beta=beta)
+        self.lif = SurrogateLIF(beta=beta, dtype=dtype, device=device)
         self.num_steps = num_steps
         self.spike_scale = nn.Parameter(torch.tensor(0.1, dtype=dtype, device=device))
     
@@ -179,7 +179,7 @@ class RoPE(nn.Module):
 
         # frequency matrix
         # θ_i = 1 / (theta^(2i/head_dim)) for i = 0, 1, ..., head_dim//2 - 1
-        inv_freq = 1.0 / (theta ** (torch.arange(0, head_dim, 2, dtype=dtype, device=device).float() / head_dim))
+        inv_freq = 1.0 / (theta ** (torch.arange(0, head_dim, 2, dtype=dtype, device=device).to(dtype) / head_dim))
         self.register_buffer('inv_freq', inv_freq)
 
         self._precompute_cossin(max_seq_len)
@@ -331,7 +331,7 @@ class SpikingGroupedSlidingAttention(nn.Module):
         self.global_rope = RoPE(head_dim or d_model//n_heads, max_seq_len, theta=rope_theta_global, dtype=dtype, device=device)
 
         self.attn = GroupedQueryAttention(d_model, n_heads, n_kv_heads, head_dim, dropout, dtype=dtype, device=device)
-        self.spike = snn.Leaky(beta=beta, learn_beta=True)
+        self.spike = snn.Leaky(beta=beta, learn_beta=True).to(dtype=dtype, device=device)
         self.num_steps = num_steps
         self.spike_scale = nn.Parameter(torch.ones(1, dtype=dtype, device=device))
         self.window_size = window_size
@@ -381,7 +381,11 @@ class SpikingGroupedSlidingAttention(nn.Module):
         spk, mem = self.spike(out, mem)
         spike_acc += spk
         
-        return (spike_acc / self.num_steps) * out.abs().mean() * self.spike_scale, present_kv
+        scale = out.abs().mean().to(out.dtype)
+        rate = (spike_acc / self.num_steps).to(out.dtype)
+        
+        final_output = rate * scale * self.spike_scale
+        return final_output, present_kv
     
 class PreRMSNorm(nn.Module):
     def __init__(self, d_model, eps=1e-5, dtype=torch.bfloat16, device="cuda"):

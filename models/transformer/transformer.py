@@ -128,8 +128,8 @@ class SpikingTransformerBlock(nn.Module):
         self.ffn_gate = nn.Parameter(torch.ones(1, dtype=dtype, device=device))
 
     def forward(self, x, use_cache=False, past_key_value=None, layer_idx=0):
-        if self.training and not use_cache:
-            return checkpoint(self._forward_impl, x, use_cache, past_key_value, layer_idx, use_reentrant=False)
+        #if self.training and not use_cache:
+        #    return checkpoint(self._forward_impl, x, use_cache, past_key_value, layer_idx, use_reentrant=False)
         return self._forward_impl(x, use_cache, past_key_value, layer_idx)
 
     def _forward_impl(self, x, use_cache, past_key_value, layer_idx):

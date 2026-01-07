@@ -85,8 +85,13 @@ def main():
     model_type_ = config['model']['type']
     print(f"Model Type: {model_type_}")
     
+<<<<<<< Updated upstream
     model_cls = RegularLLM if model_type_ == "regular" else SpikingLLM
     
+=======
+    model_cls = RegularLLM if config['model']['type'] == "regular" else SpikingLLM
+    print("model type: ", config["model"]["type"])
+>>>>>>> Stashed changes
     model = model_cls(
         vocab_size=vocab_size,
         d_model=config['model']['d_model'],
@@ -100,9 +105,14 @@ def main():
     if model_type_ == "regular":
          model.lm_head.weight = model.token_emb.weight
 
+<<<<<<< Updated upstream
     if accelerator.is_main_process and model_type_ == "regular": 
          print("🚀 Compiling model with torch.compile...")
          model = torch.compile(model)
+=======
+    if accelerator.is_main_process and config['model']['type']=='regular':print("🚀 Compiling model with torch.compile...")
+    #model = torch.compile(model)
+>>>>>>> Stashed changes
 
     muon_params_list, adam_params_list = get_grouped_params(model)
     
@@ -190,12 +200,13 @@ def main():
 
             with accelerator.accumulate(model):
                 input_ids = batch["input_ids"]
-                logits, _ = model(input_ids)
-                
-                shift_logits = logits[..., :-1, :].contiguous()
-                shift_labels = input_ids[..., 1:].contiguous()
-                
-                loss = nn.CrossEntropyLoss()(shift_logits.view(-1, vocab_size), shift_labels.view(-1))
+                with accelerator.autocast():
+                    logits, _ = model(input_ids)
+                    
+                    shift_logits = logits[..., :-1, :].contiguous()
+                    shift_labels = input_ids[..., 1:].contiguous()
+                    
+                    loss = nn.CrossEntropyLoss()(shift_logits.view(-1, vocab_size), shift_labels.view(-1))
                 
                 accelerator.backward(loss)
                 
@@ -243,7 +254,7 @@ def main():
                                 model_to_save = unwrapped_model._orig_mod if hasattr(unwrapped_model, "_orig_mod") else unwrapped_model
                                 
                                 torch.save(model_to_save.state_dict(), os.path.join(save_path, "pytorch_model.bin"))
-                                print(f"💾 Model ağırlıkları ve state başarıyla kaydedildi: {save_path}"
+                                print(f"💾 Model ağırlıkları ve state başarıyla kaydedildi: {save_path}")
 
         accelerator.wait_for_everyone()
         del train_dataloader, dataset, train_iterator, val_batches

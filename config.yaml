@@ -3,12 +3,12 @@
 # Proje ve Çıktı Ayarları
 project_name: "snn_fineweb_training"
 output_dir: "./checkpoints_hf_streaming"
-seed: 42
+seed: 27
 
 # Model Ayarları
 model:
-  type: "regular"  # 'regular' veya 'spiking'
-  model_id: "Chan-Y/tokenizer" # Tokenizer yolu (veya HF ID'si)
+  type: "spiking"  # 'regular' veya 'spiking'
+  model_id: "Chan-Y/custom_tokenizer-1024" # Tokenizer yolu (veya HF ID'si)
   d_model: 2048
   n_heads: 16
   n_kv_heads: 8
@@ -20,7 +20,7 @@ model:
 phases:
   phase1_256:
     repo_id: "Chan-Y/phase1-256"
-    steps: 1000
+    steps: 10000
     batch_size: 16    # 2 GPU için toplam batch (24 per GPU)
   
   phase2_1024:
@@ -30,7 +30,7 @@ phases:
   
   phase3_2048:
     repo_id: "ChanY2/phase3-2048"
-    steps: 300
+    steps: 3000
     batch_size: 4
 
 # Optimizer Ayarları (Muon + AdamW)
