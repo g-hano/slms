@@ -227,8 +227,20 @@ def main():
                             if val_loss < best_val_loss:
                                 best_val_loss = val_loss
                                 save_path = os.path.join(config['output_dir'], f"best_{phase_name}")
+                                
+                                # 1. Tam durumu kaydetmek için (Resume için):
                                 accelerator.save_state(save_path)
-                                print(f"💾 Yeni en iyi model kaydedildi: {save_path} | Val Loss: {best_val_loss:.4f}")
+                                
+                                # 2. SADECE model ağırlıklarını kaydetmek için (Daha güvenli):
+                                # Modeli unwrap yapıyoruz (DDP ve Compile katmanlarını soyuyoruz)
+                                unwrapped_model = accelerator.unwrap_model(model)
+                                
+                                # Eğer modeliniz bir HuggingFace modeli değilse standart torch.save kullanabilirsiniz:
+                                # torch.compile yapılmış modelin orijinal halini almak için ._orig_mod kullanılır
+                                model_to_save = unwrapped_model._orig_mod if hasattr(unwrapped_model, "_orig_mod") else unwrapped_model
+                                
+                                torch.save(model_to_save.state_dict(), os.path.join(save_path, "pytorch_model.bin"))
+                                print(f"💾 Model ağırlıkları ve state başarıyla kaydedildi: {save_path}"
 
         accelerator.wait_for_everyone()
         del train_dataloader, dataset, train_iterator, val_batches
