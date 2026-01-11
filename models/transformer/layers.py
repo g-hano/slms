@@ -191,22 +191,11 @@ class RoPE(nn.Module):
         self.register_buffer("sin_cached", torch.sin(freqs), persistent=False)
 
     def forward(self, x, seq_len=None):
-        # 1. Tracing sırasında Python 'or' operatörü yerine 'is None' kontrolü kullanın
-        if seq_len is None:
-            seq_len = x.shape[-2]
-        
-        # 2. Core ML dönüşümü (tracing) sırasında dinamik yeniden hesaplamayı atla
-        # iPhone'da model zaten max_seq_len (1024) sınırında çalışacak şekilde sabitlenir.
-        if not torch.jit.is_tracing():
-            if seq_len > self.max_seq_len:
-                self._precompute_cossin(seq_len)
-                self.max_seq_len = seq_len
-        
-        # 3. Slicing (dilimleme) işlemi Core ML tarafından desteklenir.
-        # Ancak seq_len'in integer olduğundan emin olmalıyız.
-        idx = int(seq_len) if not torch.jit.is_tracing() else seq_len
-        
-        return self.cos_cached[:idx], self.sin_cached[:idx]
+        seq_len = seq_len or x.shape[-2]
+        if seq_len > self.max_seq_len:
+            self._precompute_cossin(seq_len)
+            self.max_seq_len = seq_len
+        return self.cos_cached[:seq_len], self.sin_cached[:seq_len]
 
 def get_local_attn_mask(seq_len, window_size, device="cuda", kv_len=None):
     kv_len = kv_len or seq_len
