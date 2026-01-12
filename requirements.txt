@@ -1,0 +1,4 @@
+snntorch
+transformers
+datasets
+accelerate
