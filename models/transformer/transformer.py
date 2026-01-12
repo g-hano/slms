@@ -19,7 +19,7 @@ class RegularTransformerBlock(nn.Module):
         hidden_dim = intermediate_size or d_model * 4
         self.ffn = SwiGLU(d_model, hidden_dim, dtype=dtype, device=device)
 
-    def forward(self, x, use_cache=False, past_key_value=None, layer_idx=0):
+    def forward(self, x, use_cache=True, past_key_value=None, layer_idx=0):
         if self.training and not use_cache:
             return checkpoint(self._forward_impl, x, use_cache, past_key_value, layer_idx, use_reentrant=False)
         return self._forward_impl(x, use_cache, past_key_value, layer_idx)
@@ -81,7 +81,7 @@ class RegularLLM(nn.Module):
         """Count total parameters"""
         return sum(p.numel() for p in self.parameters())
 
-    def forward(self, input_ids, use_cache=False, past_key_values=None):
+    def forward(self, input_ids, use_cache=True, past_key_values=None):
         """
         input_ids: [batch, seq_len]
         past_key_values: list of (k, v) tuples per layer if use_cache=True
@@ -127,7 +127,7 @@ class SpikingTransformerBlock(nn.Module):
         self.attn_gate = nn.Parameter(torch.ones(1, dtype=dtype, device=device))
         self.ffn_gate = nn.Parameter(torch.ones(1, dtype=dtype, device=device))
 
-    def forward(self, x, use_cache=False, past_key_value=None, layer_idx=0):
+    def forward(self, x, use_cache=True, past_key_value=None, layer_idx=0):
         #if self.training and not use_cache:
         #    return checkpoint(self._forward_impl, x, use_cache, past_key_value, layer_idx, use_reentrant=False)
         return self._forward_impl(x, use_cache, past_key_value, layer_idx)
@@ -190,7 +190,7 @@ class SpikingLLM(nn.Module):
         """Count total parameters"""
         return sum(p.numel() for p in self.parameters())
 
-    def forward(self, input_ids, use_cache=False, past_key_values=None):
+    def forward(self, input_ids, use_cache=True, past_key_values=None):
         """
         input_ids: [batch, seq_len]
         past_key_values: list of (k, v) tuples per layer if use_cache=True
