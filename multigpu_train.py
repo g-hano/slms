@@ -100,10 +100,6 @@ def main():
     if model_type_ == "regular":
          model.lm_head.weight = model.token_emb.weight
 
-    if accelerator.is_main_process and model_type_ == "regular": 
-         print("🚀 Compiling model with torch.compile...")
-         model = torch.compile(model)
-
     muon_params_list, adam_params_list = get_grouped_params(model)
     
     try:
@@ -124,7 +120,11 @@ def main():
     )
 
     model, optim_muon, optim_adam = accelerator.prepare(model, optim_muon, optim_adam)
-
+    if accelerator.is_main_process and model_type_ == "regular":
+        print("🚀 Compiling model...")
+        # DDP paketlenmiş modeli compile ediyoruz
+        model = torch.compile(model)
+        
     global_step = 0
     
     phase_names = list(config['phases'].keys())
