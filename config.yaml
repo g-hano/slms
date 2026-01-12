@@ -7,31 +7,31 @@ seed: 27
 
 # Model Ayarları
 model:
-  type: "spiking"  # 'regular' veya 'spiking'
+  type: "regular"  # 'regular' veya 'spiking'
   model_id: "Chan-Y/custom_tokenizer-1024" # Tokenizer yolu (veya HF ID'si)
   d_model: 2048
   n_heads: 16
   n_kv_heads: 8
   num_layers: 18
-  max_seq_len: 2048
+  max_seq_len: 1024
   vocab_size: 32768  # Tokenizer'dan otomatik alınacak
 
 # Veri Seti Ayarları (Hugging Face Repoları)
 phases:
   phase1_256:
     repo_id: "Chan-Y/phase1-256"
-    steps: 10000
-    batch_size: 16    # 2 GPU için toplam batch (24 per GPU)
+    steps: 300000
+    batch_size: 32
   
   phase2_1024:
     repo_id: "Chan-Y/phase2-1024"
-    steps: 6000
-    batch_size: 8
+    steps: 180000
+    batch_size: 16
   
   phase3_2048:
     repo_id: "ChanY2/phase3-2048"
-    steps: 3000
-    batch_size: 4
+    steps: 90000
+    batch_size: 8
 
 # Optimizer Ayarları (Muon + AdamW)
 optimizer:
