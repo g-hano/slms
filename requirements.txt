@@ -2,3 +2,4 @@ snntorch
 transformers
 datasets
 accelerate
+wandb
