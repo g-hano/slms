@@ -1,5 +1,7 @@
 # SLMS - Small Language Models Framework
 
+> **🎓 Want to train your own model?** Check out our comprehensive step-by-step guide: **[TRAIN.md](TRAIN.md)**
+
 ## 📖 The Story & Vision
 
 ### Origins
@@ -90,6 +92,27 @@ Below are the training curves from Weights & Biases for the Flow-1B model during
 - **Validation Loss**: Final validation loss of **~4.1** (corresponding to 4.1 perplexity)
 - **Learning Rate**: Cosine annealing schedule with warm restarts to prevent local minima
 
+### Training Metrics (Pulse Model - SNN)
+
+The Pulse-1B model uses **Spiking Neural Network** architecture with Leaky Integrate-and-Fire (LIF) neurons for energy-efficient inference:
+
+<p align="center">
+  <img src="assets/pulse_training_loss.png" alt="Pulse Training Loss" width="45%">
+  <img src="assets/pulse_validation_loss.png" alt="Pulse Validation Loss" width="45%">
+</p>
+
+<p align="center">
+  <img src="assets/pulse_learning_rate.png" alt="Pulse Learning Rate Schedule" width="45%">
+</p>
+
+**Key Observations:**
+- **SNN Architecture**: Uses spiking neurons instead of continuous activations
+- **Energy Efficiency**: Designed for ultra-low power inference on neuromorphic hardware
+- **Training Challenge**: Surrogate gradient methods to overcome non-differentiable spike functions
+- **Performance**: Competitive accuracy with significantly reduced power consumption
+
+> **Note**: Training curves for Pulse-1B will be added upon completion of SNN training phase.
+
 ---
 
 ## � Budget & Infrastructure
@@ -143,11 +166,25 @@ All trained models and datasets are publicly available on Hugging Face:
 
 ## 🚀 How to Use
 
+### Quick Start
+
 1. **Configure**: Update `config.yaml` with your HuggingFace tokens and local paths.
 2. **Setup**: Run `accelerate config` to map your local GPUs.
 3. **Train**: Start the curriculum with `accelerate launch multigpu_train.py`.
 
-## 📚 References & Mathematical Foundations
+### Full Training Guide
+
+📖 **For a complete step-by-step training guide**, see **[TRAIN.md](TRAIN.md)**
+
+This comprehensive guide covers:
+- Environment setup and dependencies
+- Data pipeline (download, prepare, tokenize)
+- Custom tokenizer training
+- Multi-phase curriculum learning
+- Knowledge distillation
+- Model deployment and sharing
+
+---
 
 This framework is built upon the synthesis of several state-of-the-art research papers and architectures. The implementation of specific modules (Attention, RoPE, SNN) is informed by the following literature:
 
