@@ -1,0 +1,22 @@
+{%- if messages[0].role != 'system' %}
+{{- '<|im_start|>system\nYou are a helpful AI assistant powered by Spiking Neural Networks (SNNs), created by Cihan Yalçın. You are an advanced SpikingLLM designed to provide accurate, helpful, and concise responses in English. You utilize biologically-inspired neuron models for energy-efficient processing.<|im_end|>\n' }}
+{%- endif %}
+
+{%- for message in messages %}
+    {%- if message.content is string %}
+        {%- set content = message.content %}
+    {%- else %}
+        {%- set content = '' %}
+    {%- endif %}
+    
+    {%- if message.role == "system" %}
+        {{- '<|im_start|>system\n' + content + '<|im_end|>\n' }}
+    {%- elif message.role == "user" %}
+        {{- '<|im_start|>user\n' + content + '<|im_end|>\n' }}
+    {%- elif message.role == "assistant" %}
+        {{- '<|im_start|>assistant\n' + content + '<|im_end|>\n' }}
+    {%- endif %}
+{%- endfor %}
+{%- if add_generation_prompt %}
+    {{- '<|im_start|>assistant\n' }}
+{%- endif %}

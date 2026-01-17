@@ -78,7 +78,7 @@ def main():
     if accelerator.is_main_process:
         os.makedirs(config['output_dir'], exist_ok=True)
         accelerator.init_trackers(config['project_name'], config=config)
-        print(f"🔧 Config yüklendi: {args.config}")
+        print(f"🔧 Config loaded: {args.config}")
 
     tokenizer = AutoTokenizer.from_pretrained(config['model']['model_id'])
     vocab_size = tokenizer.vocab_size
@@ -109,7 +109,7 @@ def main():
             momentum=0.95, nesterov=True, ns_steps=5
         )
     except AttributeError:
-        if accelerator.is_main_process: print("⚠️ Native Muon yok, SGD fallback.")
+        if accelerator.is_main_process: print("⚠️ Native Muon not found, SGD fallback.")
         optim_muon = torch.optim.SGD(muon_params_list, lr=config['optimizer']['muon_lr'], momentum=0.95)
 
     optim_adam = torch.optim.AdamW(
@@ -122,7 +122,6 @@ def main():
     model, optim_muon, optim_adam = accelerator.prepare(model, optim_muon, optim_adam)
     if accelerator.is_main_process and model_type_ == "regular":
         print("🚀 Compiling model...")
-        # DDP paketlenmiş modeli compile ediyoruz
         model = torch.compile(model)
         
     global_step = 0
@@ -136,13 +135,13 @@ def main():
         batch_size = args.batch_size if args.batch_size else phase_cfg['batch_size']
         
         if accelerator.is_main_process: 
-            print(f"\n>>> FAZ: {phase_name} | Repo: {repo_id} | Steps: {max_steps}")
+            print(f"\n>>> Phase: {phase_name} | Repo: {repo_id} | Steps: {max_steps}")
 
         try:
             dataset = load_dataset(repo_id, split="train", streaming=True)
             dataset = dataset.with_format("torch")
         except Exception as e:
-            if accelerator.is_main_process: print(f"❌ Dataset yüklenemedi: {e}")
+            if accelerator.is_main_process: print(f"❌ Dataset loading failed: {e}")
             continue
 
         dataset = dataset.shuffle(buffer_size=config['streaming']['shuffle_buffer'], seed=config['seed'])
@@ -232,19 +231,16 @@ def main():
                                 best_val_loss = val_loss
                                 save_path = os.path.join(config['output_dir'], f"best_{phase_name}")
                                 
-                                # 1. Tam durumu kaydetmek için (Resume için):
+                                # 1. Full state save for resuming:
                                 accelerator.save_state(save_path)
                                 
-                                # 2. SADECE model ağırlıklarını kaydetmek için (Daha güvenli):
-                                # Modeli unwrap yapıyoruz (DDP ve Compile katmanlarını soyuyoruz)
+                                # 2. Only model weights save for safety:
+                                # Model unwrap
                                 unwrapped_model = accelerator.unwrap_model(model)
-                                
-                                # Eğer modeliniz bir HuggingFace modeli değilse standart torch.save kullanabilirsiniz:
-                                # torch.compile yapılmış modelin orijinal halini almak için ._orig_mod kullanılır
                                 model_to_save = unwrapped_model._orig_mod if hasattr(unwrapped_model, "_orig_mod") else unwrapped_model
                                 
                                 torch.save(model_to_save.state_dict(), os.path.join(save_path, "pytorch_model.bin"))
-                                print(f"💾 Model ağırlıkları ve state başarıyla kaydedildi: {save_path}")
+                                print(f"💾 Model weights and state saved successfully: {save_path}")
 
         accelerator.wait_for_everyone()
         del train_dataloader, dataset, train_iterator, val_batches
@@ -252,7 +248,7 @@ def main():
         accelerator.free_memory()
 
     accelerator.end_training()
-    if accelerator.is_main_process: print("🏁 Eğitim Başarıyla Tamamlandı.")
+    if accelerator.is_main_process: print("🏁 Training completed successfully.")
 
 if __name__ == "__main__":
     main()

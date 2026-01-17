@@ -1,54 +1,103 @@
-# --- EĞİTİM YAPILANDIRMASI (Config) ---
+# --- HUGGING FACE TOKENS ---
+HF_WRITE_TOKEN: ""
+HF_READ_TOKEN: ""
 
-# Proje ve Çıktı Ayarları
+# --- DATA PIPELINE CONFIG ---
+data_pipeline:
+  # Data Installation (install_data.py)
+  install:
+    source_repo: "HuggingFaceFW/fineweb"
+    repo_type: "dataset"
+    local_dir: "data/fineweb"
+    allow_patterns:
+      - "data/CC-MAIN-2025-26/000_0000*"
+      - "data/CC-MAIN-2025-26/000_0001*"
+  
+  # Data Preparation (prepare_data.py)
+  prepare:
+    input_dir: "D:/fineweb2/data/data/CC-MAIN-2025-26"
+    output_dir: "D:/fineweb2-train/CC-MAIN-2025-26"
+  
+  # Data Tokenization (tokenize_data.py)
+  tokenize:
+    model_id: "./custom_tokenizer"
+    input_dir: "D:/fineweb2-train/CC-MAIN-2025-26"
+    output_base: "D:/fineweb2-packed"
+    file_extension: "*.parquet"
+  
+  # Data Upload (upload_data.py)
+  upload:
+    phase1_256:
+      repo_id: "Chan-Y/phase1-256"
+      folder_path: "D:/fineweb2-packed/phase1_256"
+      private: true
+    phase2_1024:
+      repo_id: "Chan-Y/phase2-1024"
+      folder_path: "D:/fineweb2-packed/phase2_1024"
+      private: true
+    phase3_2048:
+      repo_id: "ChanY2/phase3-2048"
+      folder_path: "D:/fineweb2-packed/phase3_2048"
+      private: true
+  
+  # Tokenizer Training (tokenizer/train_tokenizer.py)
+  tokenizer_training:
+    raw_data_path: "D:/fineweb2-train/CC-MAIN-2025-26"
+    output_dir: "./custom_tokenizer"
+    vocab_size: 32768
+    sample_count: 1000000
+
+# --- TRAINING CONFIG ---
+
+# Project and Output Settings
 project_name: "snn_fineweb_training"
 output_dir: "./checkpoints_hf_streaming"
 seed: 27
 
-# Model Ayarları
+# Model Settings
 model:
   type: "regular"  # 'regular' veya 'spiking'
-  model_id: "Chan-Y/custom_tokenizer-1024" # Tokenizer yolu (veya HF ID'si)
+  model_id: "Chan-Y/custom_tokenizer-1024" # Tokenizer path (or HF ID)
   d_model: 2048
   n_heads: 16
   n_kv_heads: 8
   num_layers: 18
   max_seq_len: 1024
-  vocab_size: 32768  # Tokenizer'dan otomatik alınacak
+  vocab_size: 32768  # from Tokenizer
 
-# Veri Seti Ayarları (Hugging Face Repoları)
+# Dataset Settings (Hugging Face Repos)
 phases:
   phase1_256:
     repo_id: "Chan-Y/phase1-256"
-    steps: 300000
+    steps: 10000
     batch_size: 32
   
   phase2_1024:
     repo_id: "Chan-Y/phase2-1024"
-    steps: 180000
+    steps: 6000
     batch_size: 16
   
   phase3_2048:
     repo_id: "ChanY2/phase3-2048"
-    steps: 90000
+    steps: 3000
     batch_size: 8
 
-# Optimizer Ayarları (Muon + AdamW)
+# Optimizer Settings (Muon + AdamW)
 optimizer:
   muon_lr: 0.02
   adam_lr: 0.0006
   weight_decay: 0.01
   warmup_ratio: 0.05
   max_grad_norm: 1.0
-  grad_accumulation_steps: 1  # 2 GPU x 2 step = 4 efektif
+  grad_accumulation_steps: 1
 
-# Streaming ve Doğrulama
+# Streaming and Validation
 streaming:
   shuffle_buffer: 10000
-  val_samples: 500     # Validasyon için ayrılacak örnek sayısı
+  val_samples: 5000     # Validation samples
   num_workers: 4
 
-# Loglama
+# Logging
 logging:
   save_steps: 1000
   log_steps: 100

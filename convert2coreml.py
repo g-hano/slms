@@ -18,14 +18,14 @@ class TrainingConfig:
 
     phase_steps = {
         "phase1_256": 5000, 
-        #"phase2_1024": 3000, 
-        #"phase3_2048": 1500
+        "phase2_1024": 3000, 
+        "phase3_2048": 1500
     }
     
     batch_sizes = {"phase1_256": 64, "phase2_1024": 16, "phase3_2048": 8}
     grad_accumulation_steps = 4
     
-    # Streaming Ayarları
+    # Streaming Settings
     shuffle_buffer = 10000
     val_samples = 200
     
@@ -43,10 +43,10 @@ class TrainingConfig:
     phases = ["phase1_256", "phase2_1024", "phase3_2048"]
 
 config = TrainingConfig()
-# --- AYARLAR ---
-MODEL_PATH = r"C:\Users\Cihan\Desktop\snn\random_models\spiking_model.safetensors"  # veya regular.safetensors
-MODEL_TYPE = "spiking"              # veya "regular"
-OUTPUT_NAME = "spiking"   # Çıktı dosya adı
+# --- SETTINGS ---
+MODEL_PATH = r"C:\Users\Cihan\Desktop\snn\random_models\spiking_model.safetensors" # or regular.safetensors
+MODEL_TYPE = "spiking" # or "regular"
+OUTPUT_NAME = "spiking"   # Output file name
 
 def coreml_friendly_init_leaky(self):
     return None 
@@ -62,18 +62,15 @@ def coreml_friendly_forward(self, input_, mem=None):
     
     return spk, mem
 
-# İşte sihirli dokunuş: snntorch.Leaky sınıfının forward metodunu
-# geçici olarak bizim yazdığımız basit fonksiyonla değiştiriyoruz.
-print("🔧 snntorch.Leaky CoreML için yamalanıyor...")
+print("🔧 snntorch.Leaky CoreML friendly...")
 snn.Leaky.forward = coreml_friendly_forward
 snn.Leaky.init_leaky = coreml_friendly_init_leaky
 
-# 1. Modeli Başlat (Config değerlerinle aynı olmalı)
-print("🏗️ Model iskeleti oluşturuluyor...")
+print("🏗️ Model skeleton created...")
 if MODEL_TYPE == "spiking":
     model = SpikingLLM(
         vocab_size=32768, d_model=config.d_model, n_heads=config.n_heads, n_kv_heads=config.n_kv_heads, num_layers=config.num_layers,
-        max_seq_len=2048, num_steps=3, dtype=torch.float32, device="cpu" # CoreML için float32 önerilir
+        max_seq_len=2048, num_steps=3, dtype=torch.float32, device="cpu"
     )
 else:
     model = RegularLLM(
@@ -81,37 +78,29 @@ else:
         max_seq_len=2048, dtype=torch.float32, device="cpu"
     )
 
-# 2. Ağırlıkları Yükle
-print(f"📥 Ağırlıklar yükleniyor: {MODEL_PATH}")
+print(f"📥 Weights loading: {MODEL_PATH}")
 if MODEL_PATH.endswith(".safetensors"):
     state_dict = load_file(MODEL_PATH)
 else:
     state_dict = torch.load(MODEL_PATH, map_location="cpu")
 
-# Weight Tying nedeniyle eksik anahtar hatası almamak için strict=False
 model.load_state_dict(state_dict, strict=False)
 model.eval()
-
-# 3. Tracing için Örnek Girdi (Dummy Input)
-# Not: CoreML için şimdilik 'cache'siz' sade versiyonu çeviriyoruz.
 example_input_ids = torch.randint(0, 32000, (1, 1024)).long() # Batch=1, Seq=1024
 
-print("🕵️ PyTorch Tracing işlemi başlıyor...")
-# Wrapper: CoreML sadece tek çıktı veya tuple sever, karmaşıklığı azaltmak için wrapper
+print("🕵️ PyTorch Tracing started...")
 class CoreMLWrapper(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
-    def forward(self, input_ids):
-        # Sadece logitleri döndür, cache'i at (şimdilik)
+    def forward(self, input_ids):   
         logits, _ = self.model(input_ids)
         return logits
 
 wrapped_model = CoreMLWrapper(model)
 traced_model = torch.jit.trace(wrapped_model, example_input_ids, check_trace=False)
 
-# 4. CoreML Dönüştürme
-print("🍎 CoreML'e dönüştürülüyor...")
+print("🍎 Converting to CoreML...")
 mlmodel = ct.convert(
     traced_model,
     inputs=[
@@ -124,8 +113,7 @@ mlmodel = ct.convert(
     compute_units=ct.ComputeUnit.ALL # NPU + GPU + CPU
 )
 
-# 5. Kaydet
 save_path = f"{OUTPUT_NAME}.mlpackage"
 mlmodel.save(save_path)
-print(f"✅ Başarılı! Model kaydedildi: {save_path}")
-print("📱 Bu dosyayı Xcode projesine sürükleyip bırakabilirsin.")
+print(f"✅ Success! Model saved to: {save_path}")
+print("📱 Drag and drop this file to your Xcode project.")

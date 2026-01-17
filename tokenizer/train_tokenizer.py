@@ -1,23 +1,33 @@
 import os
+import yaml
 import glob
 from datasets import load_dataset
 from tokenizers import Tokenizer, models, pre_tokenizers, processors, decoders, normalizers
 from tokenizers.trainers import BpeTrainer
 from transformers import PreTrainedTokenizerFast
 
-RAW_DATA_PATH = "D:/fineweb2-train/CC-MAIN-2025-26" 
-OUTPUT_DIR = "./custom_tokenizer"
-VOCAB_SIZE = 32768
-SAMPLE_COUNT = 1_000_000
+# Load config
+with open("../config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+HF_WRITE_TOKEN = config.get("HF_WRITE_TOKEN", "")
+HF_READ_TOKEN = config.get("HF_READ_TOKEN", "")
+
+tokenizer_config = config.get("data_pipeline", {}).get("tokenizer_training", {})
+
+RAW_DATA_PATH = tokenizer_config.get("raw_data_path", "D:/fineweb2-train/CC-MAIN-2025-26")
+OUTPUT_DIR = tokenizer_config.get("output_dir", "./custom_tokenizer")
+VOCAB_SIZE = tokenizer_config.get("vocab_size", 32768)
+SAMPLE_COUNT = tokenizer_config.get("sample_count", 1000000)
 
 def get_training_corpus():
     data_files = glob.glob(os.path.join(RAW_DATA_PATH, "**/*.parquet"), recursive=True)
     
     if not data_files:
-        raise FileNotFoundError(f"Veri bulunamadı: {RAW_DATA_PATH}")
+        raise FileNotFoundError(f"Data not found: {RAW_DATA_PATH}")
         
-    print(f"📂 Bulunan dosya sayısı: {len(data_files)}")
-    print(f"🚀 Streaming ile ilk {SAMPLE_COUNT} satır okunuyor...")
+    print(f"📂 Found {len(data_files)} files")
+    print(f"🚀 Streaming with first {SAMPLE_COUNT} rows...")
 
     dataset = load_dataset("parquet", data_files=data_files, split="train", streaming=True)
     
@@ -32,28 +42,8 @@ def get_training_corpus():
             break
 
 def create_chat_template():
-    return """{%- if messages[0].role != 'system' %}
-{{- '<|im_start|>system\nYou are a helpful AI assistant powered by Spiking Neural Networks (SNNs), created by Cihan Yalçın. You are an advanced SpikingLLM designed to provide accurate, helpful, and concise responses in English. You utilize biologically-inspired neuron models for energy-efficient processing.<|im_end|>\n' }}
-{%- endif %}
-
-{%- for message in messages %}
-    {%- if message.content is string %}
-        {%- set content = message.content %}
-    {%- else %}
-        {%- set content = '' %}
-    {%- endif %}
-    
-    {%- if message.role == "system" %}
-        {{- '<|im_start|>system\n' + content + '<|im_end|>\n' }}
-    {%- elif message.role == "user" %}
-        {{- '<|im_start|>user\n' + content + '<|im_end|>\n' }}
-    {%- elif message.role == "assistant" %}
-        {{- '<|im_start|>assistant\n' + content + '<|im_end|>\n' }}
-    {%- endif %}
-{%- endfor %}
-{%- if add_generation_prompt %}
-    {{- '<|im_start|>assistant\n' }}
-{%- endif %}"""
+    with open("./chat_template.txt", "r", encoding="utf-8") as f:
+        return f.read()
 
 def train_tokenizer():
     MAX_LEN = 1024
@@ -79,12 +69,12 @@ def train_tokenizer():
         show_progress=True
     )
     
-    print("\n🔨 Tokenizer eğitiliyor (BPE)...")
+    print("\n🔨 Training tokenizer (BPE)...")
     tokenizer.train_from_iterator(get_training_corpus(), trainer=trainer)
     
     tokenizer.post_processor = processors.ByteLevel(trim_offsets=False)
     
-    print("\n💾 HuggingFace formatına dönüştürülüyor...")
+    print("\n💾 Converting to HuggingFace format...")
     hf_tokenizer = PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
         model_max_length=MAX_LEN,
@@ -101,24 +91,24 @@ def train_tokenizer():
         os.makedirs(OUTPUT_DIR)
         
     hf_tokenizer.save_pretrained(OUTPUT_DIR)
-    print(f"✅ Tokenizer başarıyla kaydedildi: {os.path.abspath(OUTPUT_DIR)}")
+    print(f"✅ Tokenizer Saved: {os.path.abspath(OUTPUT_DIR)}")
     
     return hf_tokenizer
 
 def test_tokenizer(tokenizer):
-    print("\n🧪 Test Ediliyor...")
+    print("\n🧪 Testing...")
     text = "Hello! Can you explain how Spiking Neural Networks work?"
     
     messages = [{"role": "user", "content": text}]
     prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     
-    print("--- Oluşturulan Prompt ---")
+    print("--- Generated Prompt ---")
     print(prompt)
     print("--------------------------")
     
     tokens = tokenizer.encode(prompt)
-    print(f"Token Sayısı: {len(tokens)}")
-    print(f"Geri Dönüş (Decode): {tokenizer.decode(tokens)}")
+    print(f"Token Count: {len(tokens)}")
+    print(f"Decoded: {tokenizer.decode(tokens)}")
 
 if __name__ == "__main__":
     trained_tokenizer = train_tokenizer()
