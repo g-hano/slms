@@ -16,6 +16,10 @@ from models.transformer.transformer import RegularLLM, SpikingLLM
 torch.backends.cuda.matmul.allow_tf32 = True
 torch.backends.cudnn.allow_tf32 = True
 
+checkpoint_dir = "streaming_hf_checkpoints"
+phase2_path = os.path.join(checkpoint_dir, "best_phase2_1024")
+phase1_path = os.path.join(checkpoint_dir, "best_phase1_256")
+
 def load_config(config_path):
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
@@ -84,6 +88,16 @@ def main():
     vocab_size = tokenizer.vocab_size
     model_type_ = config['model']['type']
     print(f"Model Type: {model_type_}")
+
+    resume_from = None
+    if os.path.isdir(phase2_path):
+        resume_from = phase2_path
+        print(f"Found Phase 2 checkpoint at {resume_from}. Loading...")
+    elif os.path.isdir(phase1_path):
+        resume_from = phase1_path
+        print(f"Found Phase 1 checkpoint at {resume_from}. Loading...")
+    else:
+        print("No existing phase1 or phase2 checkpoints found. Initializing new model.")
     
     model_cls = RegularLLM if model_type_ == "regular" else SpikingLLM
     
@@ -100,6 +114,32 @@ def main():
     if model_type_ == "regular":
          model.lm_head.weight = model.token_emb.weight
 
+    if resume_from:
+    try:
+        # Look for model.safetensors (preferred) or pytorch_model.bin
+        weight_file = None
+        if os.path.exists(os.path.join(resume_from, "model.safetensors")):
+            from safetensors.torch import load_file
+            weight_file = os.path.join(resume_from, "model.safetensors")
+            state_dict = load_file(weight_file)
+        elif os.path.exists(os.path.join(resume_from, "pytorch_model.bin")):
+            weight_file = os.path.join(resume_from, "pytorch_model.bin")
+            state_dict = torch.load(weight_file, map_location="cpu")
+        
+        if weight_file:
+            # Load weights into the manually initialized model
+            missing, unexpected = model.load_state_dict(state_dict, strict=False)
+            print(f"Successfully loaded weights from {weight_file}")
+            if missing:
+                print(f"Warning: Missing keys in state dict: {missing}")
+            if unexpected:
+                print(f"Warning: Unexpected keys in state dict: {unexpected}")
+        else:
+            print(f"Warning: Checkpoint directory {resume_from} exists but contains no recognized weight files.")
+            
+    except Exception as e:
+        print(f"Error loading checkpoint: {e}")
+    
     muon_params_list, adam_params_list = get_grouped_params(model)
     
     try:
