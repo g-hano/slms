@@ -1,4 +1,4 @@
-# SLMS - Small Language Models Framework
+# SLMS
 
 > **🎓 Want to train your own model?** Check out our comprehensive step-by-step guide: **[TRAIN.md](TRAIN.md)**
 
@@ -6,7 +6,9 @@
 
 ### Origins
 
-This project began with a question: *Can we create highly efficient, specialized language models that run natively on edge devices without sacrificing deep reasoning capabilities?* The goal was to bridge the gap between heavy cloud-based LLMs and the restricted computational power of mobile hardware.
+The inspiration for this project came after attending the **[ZurichNLP #17 seminar](https://www.linkedin.com/company/zurichai/)**, where **[Matteo Saponati](https://www.linkedin.com/in/matteosaponati/)** mentioned his work on **Spiking Neural Networks (SNNs)**. His talk sparked my curiosity about the potential of neuromorphic computing for language models, leading me to explore how SNNs could be applied to natural language processing.
+
+This curiosity evolved into a concrete question: *Can we create highly efficient, specialized language models that run natively on edge devices without sacrificing deep reasoning capabilities?* The goal became clear: bridge the gap between heavy cloud-based LLMs and the restricted computational power of mobile hardware, while leveraging the energy efficiency of biologically-inspired spiking architectures.
 
 ### The Multilingual Experiment
 
@@ -111,11 +113,9 @@ The Pulse-1B model uses **Spiking Neural Network** architecture with Leaky Integ
 - **Training Challenge**: Surrogate gradient methods to overcome non-differentiable spike functions
 - **Performance**: Competitive accuracy with significantly reduced power consumption
 
-> **Note**: Training curves for Pulse-1B will be added upon completion of SNN training phase.
-
 ---
 
-## � Budget & Infrastructure
+## Budget & Infrastructure
 
 This project was built with **extreme resource constraints** in mind:
 
@@ -139,26 +139,39 @@ All trained models and datasets are publicly available on Hugging Face:
 
 ### Custom Tokenizer
 
-* **[custom_tokenizer-1024](https://huggingface.co/Chan-Y/custom_tokenizer-1024)** - BPE tokenizer with 1,024 tokens, optimized for English
+* **[flow-pulse-tokenizer](https://huggingface.co/Chan-Y/flow-pulse-tokenizer)** - BPE tokenizer with 32,768 vocab size, optimized for English
 
 ### Training Datasets
 
-* **[phase1-256](https://huggingface.co/datasets/Chan-Y/phase1-256)** - Foundational language training (256 context length)
-* **[phase2-1024](https://huggingface.co/datasets/Chan-Y/phase2-1024)** - Reasoning and logic training (1,024 context length)
-* **[phase3-2048](https://huggingface.co/datasets/ChanY2/phase3-2048)** - Long-context polish training (2,048 context length)
+*   **[phase1-256](https://huggingface.co/datasets/Chan-Y/phase1-256)** - Foundational language training (256 context length)
+*   **[phase2-1024](https://huggingface.co/datasets/Chan-Y/phase2-1024)** - Reasoning and logic training (1,024 context length)
+*   **[phase3-2048](https://huggingface.co/datasets/ChanY2/phase3-2048)** - Long-context polish training (2,048 context length)
 
 ---
 
-## �📂 Project Structure
+## 👨‍💻 Author
+
+This project was developed by **Cihan Yalçın (Chan-Y)**.
+
+**Connect with me:**
+- 💼 LinkedIn: [linkedin.com/in/chanyalcin](https://www.linkedin.com/in/chanyalcin/)
+- 🐙 GitHub: [github.com/g-hano](https://github.com/g-hano)
+- 🤗 Hugging Face: [huggingface.co/Chan-Y](https://huggingface.co/Chan-Y)
+
+---
+
+## 📂 Project Structure
 
 ```text
 .
 ├── data/               # Cleaning, Tokenization, and HF Upload scripts
 ├── models/             # Transformer & SNN implementations
 ├── tokenizer/          # Custom BPE Tokenizer training
+├── distill/            # Knowledge distillation scripts
 ├── config.yaml         # Centralized training & model configuration
 ├── multigpu_train.py   # Distributed training entry point
-└── convert.py          # CoreML / Edge deployment utility
+├── inference.py        # Inference script for pretrained models
+└── convert2coreml.py   # CoreML / Edge deployment utility
 
 ```
 
@@ -166,7 +179,33 @@ All trained models and datasets are publicly available on Hugging Face:
 
 ## 🚀 How to Use
 
-### Quick Start
+### Inference with Pretrained Models
+
+The easiest way to get started is to use our pretrained models directly:
+
+```bash
+# Interactive chat with Flow-1B model
+python inference.py --model_type flow
+
+# Interactive chat with Pulse-1B (SNN) model
+python inference.py --model_type pulse
+
+# Single question
+python inference.py --model_type flow --prompt "What is 15 * 23?"
+
+# Batch generation from file
+python inference.py --model_type flow --prompts_file questions.txt --output results.jsonl
+```
+
+**Available Models:**
+- **`flow`**: [Flow-1B-gsm8k](https://huggingface.co/Chan-Y/Flow-1B-gsm8k) - Regular Transformer (1B params)
+- **`pulse`**: [Pulse-1B-gsm8k](https://huggingface.co/Chan-Y/Pulse-1B-gsm8k) - Spiking Neural Network (1B params)
+
+Both models use the **[flow-pulse-tokenizer](https://huggingface.co/Chan-Y/flow-pulse-tokenizer)** which will be automatically downloaded.
+
+The inference script will automatically download model weights on first run and cache them locally.
+
+### Training Your Own Model
 
 1. **Configure**: Update `config.yaml` with your HuggingFace tokens and local paths.
 2. **Setup**: Run `accelerate config` to map your local GPUs.
@@ -223,3 +262,7 @@ This framework is built upon the synthesis of several state-of-the-art research 
 * **Weight Tying**: To reduce memory footprint and improve convergence, the model uses tied weights between the `token_embedding` and the `lm_head`.
 * **Mixed Precision (BF16)**: All training is conducted in `bfloat16` to leverage the hardware acceleration of RTX 40-series Tensor Cores while maintaining numerical stability.
 * **Gradient Checkpointing**: Strategically applied to Transformer blocks to enable training with sequence lengths up to 2,048 on 16GB/32GB VRAM hardware.
+* **Hybrid Optimizer Strategy (Muon + AdamW)**: The training employs a dual-optimizer approach that significantly accelerates convergence:
+  - **Muon Optimizer** is applied to **2D parameters** (weight matrices): token embeddings, attention projection weights (`W_q`, `W_k`, `W_v`, `W_o`), and feed-forward network weights. Muon's second-order curvature information enables ~5x faster convergence on these high-dimensional matrices compared to standard AdamW.
+  - **AdamW Optimizer** is used for **1D parameters**: biases, layer normalization parameters, and other low-dimensional tensors where first-order methods remain efficient.
+  - This hybrid approach balances computational efficiency with convergence speed, particularly crucial given the limited training budget (~$50). Muon's superior performance on embeddings and attention matrices directly translates to better language modeling capabilities with fewer training steps.

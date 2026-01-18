@@ -51,13 +51,13 @@ data_pipeline:
 
 # Project and Output Settings
 project_name: "snn_fineweb_training"
-output_dir: "./checkpoints_hf_streaming"
+output_dir: "./checkpoints"
 seed: 27
 
 # Model Settings
 model:
   type: "regular"  # 'regular' veya 'spiking'
-  model_id: "Chan-Y/custom_tokenizer-1024" # Tokenizer path (or HF ID)
+  model_id: "Chan-Y/flow-pulse-tokenizer" # Tokenizer path (or HF ID)
   d_model: 2048
   n_heads: 16
   n_kv_heads: 8

@@ -55,7 +55,7 @@ instance/
 # Temporary files
 .DS_Store
 Thumbs.db
-checkpoints_hf_streaming/
+checkpoints/
 checkpoints_distilled/
 *.bin
 *.safetensors

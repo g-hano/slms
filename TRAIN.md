@@ -203,12 +203,12 @@ Edit `config.yaml` to set your training hyperparameters:
 ```yaml
 # --- TRAINING CONFIG ---
 project_name: "snn_fineweb_training"
-output_dir: "./checkpoints_hf_streaming"
+output_dir: "./checkpoints"
 
 # Model Architecture
 model:
   type: "regular"  # 'regular' (Transformer) or 'spiking' (SNN)
-  model_id: "YOUR_USERNAME/custom_tokenizer-1024"  # Your tokenizer
+  model_id: "YOUR_USERNAME/flow-pulse-tokenizer"  # Your tokenizer
   d_model: 2048          # Hidden dimension
   n_heads: 16            # Number of attention heads
   n_kv_heads: 8          # Grouped Query Attention heads
@@ -266,7 +266,7 @@ accelerate launch multigpu_train.py
 - Load checkpoints from previous phases
 - Use gradient checkpointing for memory efficiency
 - Log metrics to Weights & Biases (if configured)
-- Save checkpoints to `./checkpoints_hf_streaming/`
+- Save checkpoints to `./checkpoints/`
 
 ### Step 12: Monitor Training
 
@@ -289,11 +289,23 @@ wandb login
 
 ## 🎯 Knowledge Distillation (Optional)
 
-To improve reasoning capabilities using a teacher model:
+Knowledge distillation allows smaller models to learn from larger, more capable "teacher" models. This improves reasoning, accuracy, and task-specific performance without increasing model size.
+
+### Architecture Components
+
+**1. Distillation-Compatible Layers** (`models/transformer/layers.py`)
+
+Both regular and spiking models support knowledge distillation through specialized activation functions:
+
+- **`SwiGLU`**: Gated Linear Unit with Swish activation for regular transformers
+- **`SpikingSwiGLU`**: Spiking version with Leaky Integrate-and-Fire (LIF) neurons that processes activations through temporal spiking dynamics
+- **`ImprovedSpikingSwiGLU`**: Enhanced spiking layer with surrogate gradients and residual connections
+
+The spiking layers use temporal coding to simulate neural spike trains, which adds biological plausibility and energy efficiency to the model.
 
 ### Step 13: Generate Teacher Outputs
 
-Generate synthetic training data from a larger teacher model (e.g., Qwen3-4B) for distillation:
+Generate synthetic training data from a larger teacher model (e.g., Qwen2.5-Math-1.5B) for distillation:
 
 ```bash
 python distill/generate_distillation_data.py \
@@ -338,12 +350,52 @@ python distill/generate_distillation_data.py \
 
 ### Step 14: Fine-tune with Distillation
 
+Train your student model on the generated teacher outputs using supervised fine-tuning:
+
 ```bash
-accelerate launch distill/train_distillation.py \
-  --student_checkpoint "./checkpoints_hf_streaming/phase3_final" \
-  --teacher_data "./distill_data/gsm8k_teacher_outputs.jsonl" \
-  --output_dir "./checkpoints_distilled"
+accelerate launch distill/distil.py \
+  --cache_file "./distill_data/gsm8k_teacher_outputs.jsonl" \
+  --student_checkpoint "./checkpoints/phase3_final/pytorch_model.bin" \
+  --tokenizer_id "YOUR_USERNAME/flow-pulse-tokenizer" \
+  --output_dir "./checkpoints_distilled" \
+  --model_type "regular" \
+  --max_length 1024 \
+  --batch_size 2 \
+  --gradient_accumulation_steps 4 \
+  --learning_rate 5e-5 \
+  --epochs 3
 ```
+
+**Available Arguments:**
+
+- `--cache_file`: Path to teacher outputs JSONL file (default: `./teacher_outputs.jsonl`)
+- `--student_checkpoint`: Path to pretrained student model weights (default: `./model_weights/best_phase2_1024/pytorch_model.bin`)
+- `--tokenizer_id`: HuggingFace tokenizer ID (default: `Chan-Y/flow-pulse-tokenizer`)
+- `--output_dir`: Directory to save trained models (default: `./flow_trained_model`)
+- `--model_type`: Model architecture type: `"regular"` or `"spiking"` (default: `spiking`)
+- `--max_length`: Maximum sequence length (default: `1024`)
+- `--batch_size`: Training batch size per device (default: `2`)
+- `--gradient_accumulation_steps`: Gradient accumulation steps (default: `4`)
+- `--learning_rate`: Learning rate (default: `5e-5`)
+- `--epochs`: Number of training epochs (default: `3`)
+- `--vocab_size`: Vocabulary size (default: `32768`)
+- `--d_model`: Model hidden dimension (default: `2048`)
+- `--n_heads`: Number of attention heads (default: `16`)
+- `--n_kv_heads`: Number of key-value heads for GQA (default: `8`)
+- `--num_layers`: Number of transformer layers (default: `18`)
+
+**What it does:**
+- Loads your pretrained student model (Flow-1B or Pulse-1B)
+- Fine-tunes on teacher-generated reasoning traces
+- Uses supervised fine-tuning with cross-entropy loss
+- Saves best and final checkpoints based on training loss
+- Supports both regular Transformer and Spiking Neural Network architectures
+
+**Training Tips:**
+- Use `--model_type "spiking"` for Pulse-1B (SNN) models
+- Use `--model_type "regular"` for Flow-1B (standard Transformer) models
+- Reduce `--batch_size` if you encounter OOM errors
+- Increase `--gradient_accumulation_steps` to maintain effective batch size
 
 ---
 
@@ -356,7 +408,7 @@ python -c "
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Load your trained model
-model = AutoModelForCausalLM.from_pretrained('./checkpoints_hf_streaming/phase3_final')
+model = AutoModelForCausalLM.from_pretrained('./checkpoints/phase3_final')
 tokenizer = AutoTokenizer.from_pretrained('./custom_tokenizer')
 
 # Upload to HF Hub
@@ -367,11 +419,35 @@ tokenizer.push_to_hub('YOUR_USERNAME/Flow-1B-custom')
 
 ### Step 16: Convert to CoreML (For iOS/Edge Deployment)
 
+Convert your trained model to CoreML format for deployment on Apple devices (iPhone, iPad, Mac):
+
+**For Flow-1B (Regular Transformer):**
 ```bash
 python convert2coreml.py \
-  --model_path "./checkpoints_hf_streaming/phase3_final" \
-  --output_path "./coreml_models/flow_1b.mlpackage"
+  --model_path "./checkpoints_hf_streaming/phase3_final/pytorch_model.bin" \
+  --model_type regular \
+  --output flow_1b
 ```
+
+**For Pulse-1B (Spiking Neural Network):**
+```bash
+python convert2coreml.py \
+  --model_path "./checkpoints_hf_streaming/phase3_final/pytorch_model.bin" \
+  --model_type spiking \
+  --output pulse_1b \
+  --num_steps 3
+```
+
+**Available Arguments:**
+- `--model_path`: Path to PyTorch model weights (`.bin` or `.safetensors`)
+- `--model_type`: Model architecture (`regular` or `spiking`)
+- `--output`: Output filename (saves as `.mlpackage`)
+- `--ios_version`: iOS deployment target (`iOS15`, `iOS16`, `iOS17`, `iOS18`) - default: `iOS18`
+- `--compute_units`: Compute units (`ALL`, `CPU_ONLY`, `CPU_AND_GPU`, `CPU_AND_NE`) - default: `ALL`
+- `--max_seq_len`: Maximum sequence length (default: `2048`)
+- `--num_steps`: Spiking timesteps for SNN models (default: `3`)
+
+The generated `.mlpackage` file can be dragged directly into your Xcode project for on-device inference.
 
 ---
 
@@ -433,3 +509,15 @@ Once training is complete:
 For questions or issues, please open an issue on GitHub.
 
 Happy training! 🚀
+
+---
+
+## 👨‍💻 Author
+
+This training guide was created by **Cihan Yalçın (Chan-Y)**.
+
+**Connect with me:**
+- 💼 LinkedIn: [linkedin.com/in/chanyalcin](https://www.linkedin.com/in/chanyalcin/)
+- 🐙 GitHub: [github.com/g-hano](https://github.com/g-hano)
+- 🤗 Hugging Face: [huggingface.co/Chan-Y](https://huggingface.co/Chan-Y)
+
