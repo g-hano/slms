@@ -115,30 +115,30 @@ def main():
          model.lm_head.weight = model.token_emb.weight
 
     if resume_from:
-    try:
-        # Look for model.safetensors (preferred) or pytorch_model.bin
-        weight_file = None
-        if os.path.exists(os.path.join(resume_from, "model.safetensors")):
-            from safetensors.torch import load_file
-            weight_file = os.path.join(resume_from, "model.safetensors")
-            state_dict = load_file(weight_file)
-        elif os.path.exists(os.path.join(resume_from, "pytorch_model.bin")):
-            weight_file = os.path.join(resume_from, "pytorch_model.bin")
-            state_dict = torch.load(weight_file, map_location="cpu")
-        
-        if weight_file:
-            # Load weights into the manually initialized model
-            missing, unexpected = model.load_state_dict(state_dict, strict=False)
-            print(f"Successfully loaded weights from {weight_file}")
-            if missing:
-                print(f"Warning: Missing keys in state dict: {missing}")
-            if unexpected:
-                print(f"Warning: Unexpected keys in state dict: {unexpected}")
-        else:
-            print(f"Warning: Checkpoint directory {resume_from} exists but contains no recognized weight files.")
+        try:
+            # Look for model.safetensors (preferred) or pytorch_model.bin
+            weight_file = None
+            if os.path.exists(os.path.join(resume_from, "model.safetensors")):
+                from safetensors.torch import load_file
+                weight_file = os.path.join(resume_from, "model.safetensors")
+                state_dict = load_file(weight_file)
+            elif os.path.exists(os.path.join(resume_from, "pytorch_model.bin")):
+                weight_file = os.path.join(resume_from, "pytorch_model.bin")
+                state_dict = torch.load(weight_file, map_location="cpu")
             
-    except Exception as e:
-        print(f"Error loading checkpoint: {e}")
+            if weight_file:
+                # Load weights into the manually initialized model
+                missing, unexpected = model.load_state_dict(state_dict, strict=False)
+                print(f"Successfully loaded weights from {weight_file}")
+                if missing:
+                    print(f"Warning: Missing keys in state dict: {missing}")
+                if unexpected:
+                    print(f"Warning: Unexpected keys in state dict: {unexpected}")
+            else:
+                print(f"Warning: Checkpoint directory {resume_from} exists but contains no recognized weight files.")
+                
+        except Exception as e:
+            print(f"Error loading checkpoint: {e}")
     
     muon_params_list, adam_params_list = get_grouped_params(model)
     
