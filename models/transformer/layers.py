@@ -37,23 +37,9 @@ class SpikingSwiGLU(nn.Module):
         mem = self.lif.init_leaky()
         spike_acc = torch.zeros_like(x)
 
-        #for _ in range(self.num_steps):
-        # Not using for loop for ANE
-        # Iteration 1
-        spk, mem = self.lif(x, mem)
-        spike_acc += spk
-        # Iteration 2
-        spk, mem = self.lif(x, mem)
-        spike_acc += spk
-        # Iteration 3
-        spk, mem = self.lif(x, mem)
-        spike_acc += spk
-        # Iteration 4
-        spk, mem = self.lif(x, mem)
-        spike_acc += spk
-        # Iteration 5
-        spk, mem = self.lif(x, mem)
-        spike_acc += spk
+        for i in range(self.num_steps):
+            spk, mem = self.lif(x, mem)
+            spike_acc += spk
         
         spike_rate = spike_acc / self.num_steps
         with torch.no_grad():
@@ -130,23 +116,9 @@ class ImprovedSpikingSwiGLU(nn.Module):
         mem = None
         spike_sum = torch.zeros_like(swiglu_out)
         
-        #for _ in range(self.num_steps):
-        # Not using for loop for ANE
-        # Iteration 1
-        spk, mem = self.lif(swiglu_out, mem)
-        spike_sum += spk
-        # Iteration 2
-        spk, mem = self.lif(swiglu_out, mem)
-        spike_sum += spk
-        # Iteration 3
-        spk, mem = self.lif(swiglu_out, mem)
-        spike_sum += spk
-        # Iteration 4
-        spk, mem = self.lif(swiglu_out, mem)
-        spike_sum += spk
-        # Iteration 5
-        spk, mem = self.lif(swiglu_out, mem)
-        spike_sum += spk
+        for _ in range(self.num_steps):
+            spk, mem = self.lif(swiglu_out, mem)
+            spike_sum += spk
         
         # Simple rate-based output
         spike_rate = spike_sum / self.num_steps
@@ -257,10 +229,7 @@ class GroupedQueryAttention(nn.Module):
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
 
-        # Flash Attention Optimization
-        # Eğer maske yoksa (Global Attn) -> Flash Attention Causal Kernel kullanılır
-        # Eğer maske varsa (Sliding Window) -> Maskeli SDPA kullanılır
-        
+        # Flash Attention Optimization        
         is_causal = False
         attn_mask = mask
         
@@ -270,9 +239,18 @@ class GroupedQueryAttention(nn.Module):
             # Maske şekillendirme [B, 1, Q, K] veya [1, 1, Q, K]
             if mask.dtype == torch.bool:
                 # F.sdpa bool maskeyi destekler ama float maske bazen daha stabildir
-                pass 
+                # Convert boolean mask to float mask with -inf for masked positions
+                attn_mask = torch.zeros_like(mask, dtype=q.dtype)
+                attn_mask.masked_fill_(mask, float('-inf'))
             else:
-                pass
+                # Assume mask is already a float mask
+                attn_mask = mask.to(q.dtype)
+            
+            # Ensure mask has the right shape [batch_size, 1, seq_len_q, seq_len_k]
+            if attn_mask.dim() == 2:  # [seq_len_q, seq_len_k]
+                attn_mask = attn_mask.unsqueeze(0).unsqueeze(0)
+            elif attn_mask.dim() == 3:  # [batch_size, seq_len_q, seq_len_k]
+                attn_mask = attn_mask.unsqueeze(1)
 
         out = F.scaled_dot_product_attention(
             q, k, v,
@@ -301,11 +279,10 @@ class RegularGroupedSlidingAttention(nn.Module):
             kv_len = seq_len
 
         if is_global:
-            return None #torch.tril(torch.ones(seq_len, kv_len, dtype=torch.bool, device=device))
+            return torch.tril(torch.ones(seq_len, kv_len, dtype=torch.bool, device=device))
         else:
             idxs_q = torch.arange(seq_len, device=device).view(-1, 1)
             idxs_k = torch.arange(kv_len, device=device).view(1, -1)
-            # FIX: Causal AND Window
             causal_mask = idxs_q >= idxs_k
             window_mask = (idxs_q - idxs_k) <= self.window_size
             return causal_mask & window_mask
@@ -341,7 +318,7 @@ class SpikingGroupedSlidingAttention(nn.Module):
         kv_len = kv_len or seq_len
 
         if is_global:
-            return None #torch.tril(torch.ones(seq_len, kv_len, dtype=torch.bool, device=device))
+            return torch.tril(torch.ones(seq_len, kv_len, dtype=torch.bool, device=device))
         else:
             idxs_q = torch.arange(seq_len, device=device).view(-1, 1)
             idxs_k = torch.arange(kv_len, device=device).view(1, -1)
@@ -364,23 +341,9 @@ class SpikingGroupedSlidingAttention(nn.Module):
         mem = self.spike.init_leaky()
         spike_acc = torch.zeros_like(out)
 
-        #for _ in range(self.num_steps):
-        # Not using for loop for ANE
-        # Iteration 1
-        spk, mem = self.spike(out, mem)
-        spike_acc += spk
-        # Iteration 2
-        spk, mem = self.spike(out, mem)
-        spike_acc += spk
-        # Iteration 3
-        spk, mem = self.spike(out, mem)
-        spike_acc += spk
-        # Iteration 4
-        spk, mem = self.spike(out, mem)
-        spike_acc += spk
-        # Iteration 5
-        spk, mem = self.spike(out, mem)
-        spike_acc += spk
+        for _ in range(self.num_steps):
+            spk, mem = self.spike(out, mem)
+            spike_acc += spk
         
         scale = out.abs().mean().to(out.dtype)
         rate = (spike_acc / self.num_steps).to(out.dtype)

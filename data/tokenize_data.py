@@ -1,14 +1,21 @@
 import os
+import yaml
 import glob
 import math
 from itertools import chain
 from transformers import AutoTokenizer
 from datasets import load_dataset
 
-MODEL_ID = "./custom_tokenizer"
-INPUT_DIR = "D:/fineweb2-train/CC-MAIN-2025-26"
-OUTPUT_BASE = "D:/fineweb2-packed"
-FILE_EXTENSION = "*.parquet"
+# Load config
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+tokenize_config = config.get("data_pipeline", {}).get("tokenize", {})
+
+MODEL_ID = tokenize_config.get("model_id", "./custom_tokenizer")
+INPUT_DIR = tokenize_config.get("input_dir", "D:/fineweb2-train/CC-MAIN-2025-26")
+OUTPUT_BASE = tokenize_config.get("output_base", "D:/fineweb2-packed")
+FILE_EXTENSION = tokenize_config.get("file_extension", "*.parquet")
 
 phases = [
     {"name": "phase1_256",  "seq_len": 256,  "range": (0.0, 0.20)}, 
@@ -37,10 +44,10 @@ def process_phase(phase_config, file_list, tokenizer):
     seq_len = phase_config["seq_len"]
     output_dir = os.path.join(OUTPUT_BASE, phase_name)
     
-    print(f"\n>>> İşleniyor: {phase_name} | Seq Len: {seq_len} | Dosya Sayısı: {len(file_list)}")
+    print(f"\n>>> Processing: {phase_name} | Seq Len: {seq_len} | File Count: {len(file_list)}")
     
     if not file_list:
-        print(f"UYARI: {phase_name} için dosya bulunamadı.")
+        print(f"Warning: No files found for {phase_name}.")
         return
 
     try:
@@ -68,16 +75,16 @@ def process_phase(phase_config, file_list, tokenizer):
 
         print(f"   Saving to {output_dir}...")
         packed_dataset.save_to_disk(output_dir)
-        print(f"✔ {phase_name} tamamlandı. Kayıt sayısı: {len(packed_dataset)}")
+        print(f"✔ {phase_name} completed. Record count: {len(packed_dataset)}")
 
     except Exception as e:
-        print(f"HATA: {phase_name} işlenirken bir sorun oluştu: {e}")
+        print(f"Error: {phase_name} processing failed: {e}")
 
 def main():
     if not os.path.exists(OUTPUT_BASE):
         os.makedirs(OUTPUT_BASE)
     
-    print(f"Tokenizer yükleniyor: {MODEL_ID}")
+    print(f"Tokenizer loading: {MODEL_ID}")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
     
     if tokenizer.pad_token is None:
@@ -85,10 +92,10 @@ def main():
 
     all_files = get_all_files(INPUT_DIR, FILE_EXTENSION)
     total_files = len(all_files)
-    print(f"Toplam bulunan dosya: {total_files}")
+    print(f"Total files found: {total_files}")
 
     if total_files == 0:
-        print("Hata: Belirtilen klasörde dosya bulunamadı. Uzantıyı veya yolu kontrol et.")
+        print("Error: No files found in the specified directory. Check the extension or path.")
         return
 
     for phase in phases:
@@ -98,7 +105,7 @@ def main():
         phase_files = all_files[start_idx:end_idx]
         process_phase(phase, phase_files, tokenizer)
 
-    print("\n--- TÜM İŞLEMLER TAMAMLANDI ---")
+    print("\n--- ALL PROCESSES COMPLETED ---")
 
 if __name__ == "__main__":
     main()
