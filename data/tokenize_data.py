@@ -13,8 +13,8 @@ with open("config.yaml", "r") as f:
 tokenize_config = config.get("data_pipeline", {}).get("tokenize", {})
 
 MODEL_ID = tokenize_config.get("model_id", "./custom_tokenizer")
-INPUT_DIR = tokenize_config.get("input_dir", "D:/fineweb2-train/CC-MAIN-2025-26")
-OUTPUT_BASE = tokenize_config.get("output_base", "D:/fineweb2-packed")
+INPUT_DIR = tokenize_config.get("input_dir", "")
+OUTPUT_BASE = tokenize_config.get("output_base", "")
 FILE_EXTENSION = tokenize_config.get("file_extension", "*.parquet")
 
 phases = [

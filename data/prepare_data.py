@@ -10,8 +10,8 @@ with open("config.yaml", "r") as f:
 prepare_config = config.get("data_pipeline", {}).get("prepare", {})
 
 # 1. Paths
-input_dir = prepare_config.get("input_dir", "D:/fineweb2/data/data/CC-MAIN-2025-26")
-output_dir = prepare_config.get("output_dir", "D:/fineweb2-train/CC-MAIN-2025-26")
+input_dir = prepare_config.get("input_dir", "")
+output_dir = prepare_config.get("output_dir", "")
 
 os.makedirs(output_dir, exist_ok=True)
 

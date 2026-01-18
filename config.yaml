@@ -15,34 +15,34 @@ data_pipeline:
   
   # Data Preparation (prepare_data.py)
   prepare:
-    input_dir: "D:/fineweb2/data/data/CC-MAIN-2025-26"
-    output_dir: "D:/fineweb2-train/CC-MAIN-2025-26"
+    input_dir: ""
+    output_dir: ""
   
   # Data Tokenization (tokenize_data.py)
   tokenize:
     model_id: "./custom_tokenizer"
-    input_dir: "D:/fineweb2-train/CC-MAIN-2025-26"
-    output_base: "D:/fineweb2-packed"
+    input_dir: ""
+    output_base: ""
     file_extension: "*.parquet"
   
   # Data Upload (upload_data.py)
   upload:
     phase1_256:
       repo_id: "Chan-Y/phase1-256"
-      folder_path: "D:/fineweb2-packed/phase1_256"
+      folder_path: ""
       private: true
     phase2_1024:
       repo_id: "Chan-Y/phase2-1024"
-      folder_path: "D:/fineweb2-packed/phase2_1024"
+      folder_path: ""
       private: true
     phase3_2048:
       repo_id: "ChanY2/phase3-2048"
-      folder_path: "D:/fineweb2-packed/phase3_2048"
+      folder_path: ""
       private: true
   
   # Tokenizer Training (tokenizer/train_tokenizer.py)
   tokenizer_training:
-    raw_data_path: "D:/fineweb2-train/CC-MAIN-2025-26"
+    raw_data_path: ""
     output_dir: "./custom_tokenizer"
     vocab_size: 32768
     sample_count: 1000000
